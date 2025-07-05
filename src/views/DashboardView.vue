@@ -1,411 +1,549 @@
 <template>
   <v-app>
-    <div class="dashboard-layout">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <v-avatar size="56" class="sidebar-avatar">
-            <v-icon size="36" color="#00d1ff">mdi-brain</v-icon>
-          </v-avatar>
-          <div class="sidebar-title">Prediktor</div>
-        </div>
-        <div class="sidebar-links">
-          <v-btn
-            class="nav-link"
-            :class="{ active: currentTab === 'dashboard' }"
-            block
-            variant="text"
-            @click="currentTab = 'dashboard'"
-          >
-            <v-icon left>mdi-upload</v-icon>
-            <span>Početna</span>
-          </v-btn>
-          <v-btn
-            class="nav-link"
-            :class="{ active: currentTab === 'history' }"
-            block
-            variant="text"
-            @click="currentTab = 'history'"
-          >
-            <v-icon left>mdi-history</v-icon>
-            <span>Prijašnje predikcije</span>
-          </v-btn>
-        </div>
-        <div class="sidebar-footer">
-          <v-tooltip location="right">
-            <template #activator="{ props }">
-              <v-btn v-bind="props" class="info-btn" icon @click="openInfo = true">
-                <v-icon>mdi-information</v-icon>
-              </v-btn>
-            </template>
-            <span>Kontakt & Info</span>
-          </v-tooltip>
-          <v-btn class="logout-btn" icon @click="logout">
-            <v-icon color="#d32f2f">mdi-logout</v-icon>
-          </v-btn>
-        </div>
-      </aside>
+    <!-- LIJEVI NAVBAR -->
+    <v-navigation-drawer
+      v-model="drawer"
+      permanent
+      class="left-navbar"
+      width="280"
+    >
+      <div class="navbar-header">
+        <h2 class="nav-title">SpotCount</h2>
+        <p class="nav-subtitle">Parking Spot Counter</p>
+      </div>
 
-      <!-- Main content -->
-      <main class="main-content">
-        <!-- Animirani background -->
-        <div class="animated-background">
-          <div class="floating-circle circle-1"></div>
-          <div class="floating-circle circle-2"></div>
-          <div class="floating-circle circle-3"></div>
-          <div class="floating-circle circle-4"></div>
-        </div>
-        <div class="main-inner">
-          <!-- Početna -->
-          <div v-if="currentTab === 'dashboard'" class="main-card">
-            <div class="dashboard-header">
-              <h1 class="dashboard-title">Dashboard</h1>
-              <p class="dashboard-subtitle">
-                Dobrodošao! Dodaj sliku i pokreni predikciju.
-              </p>
-            </div>
-            <!-- DRAG & DROP / UPLOAD -->
-            <div
-              class="dropzone"
-              :class="{ 'dropzone--active': isDragActive }"
-              @dragover.prevent="isDragActive = true"
-              @dragleave.prevent="isDragActive = false"
-              @drop.prevent="onDrop"
-              @click="$refs.fileInput.click()"
-            >
-              <v-icon size="40" color="#00d1ff">mdi-cloud-upload</v-icon>
-              <p v-if="!imageName">Povuci i ispusti sliku ovdje, ili klikni za upload</p>
-              <p v-else>Odabrana datoteka: <b>{{ imageName }}</b></p>
-              <input
-                ref="fileInput"
-                type="file"
-                accept="image/*"
-                class="file-input"
-                @change="onFileChange"
-              />
-            </div>
-            <!-- Preview slike -->
-            <div v-if="imageUrl" class="image-preview mt-4">
-              <img :src="imageUrl" alt="Preview slike" />
-            </div>
-            <!-- Gumb za predikciju -->
-            <v-btn
-              class="modern-btn primary-btn mt-6"
-              size="x-large"
-              block
-              elevation="0"
-              @click="onPredict"
-            >
-              <v-icon left class="mr-2">mdi-lightbulb</v-icon>
-              Pokreni predikciju
-            </v-btn>
-          </div>
-          <!-- Prijašnje predikcije -->
-          <div v-if="currentTab === 'history'" class="main-card">
-            <div class="dashboard-header">
-              <h1 class="dashboard-title">Prijašnje predikcije</h1>
-              <p class="dashboard-subtitle">
-                Ovdje će biti lista tvojih ranijih predikcija.
-              </p>
-            </div>
-            <div class="history-placeholder">
-              <v-icon color="#004aad" size="48" class="mb-2">mdi-file-find</v-icon>
-              <div>Još nema pohranjenih predikcija.</div>
-            </div>
-          </div>
-        </div>
-      </main>
+      <v-list class="nav-menu">
+        <v-list-item
+          class="nav-item"
+          :class="{ active: currentView === 'predictions' }"
+          @click="currentView = 'predictions'"
+        >
+          <template v-slot:prepend>
+            <v-icon class="nav-icon">mdi-lightbulb</v-icon>
+          </template>
+          <v-list-item-title class="nav-text">Predikcije</v-list-item-title>
+        </v-list-item>
+
+        <v-list-item
+          class="nav-item"
+          :class="{ active: currentView === 'history' }"
+          @click="() => { currentView = 'history'; fetchHistory() }"
+        >
+          <template v-slot:prepend>
+            <v-icon class="nav-icon">mdi-history</v-icon>
+          </template>
+          <v-list-item-title class="nav-text">Povijest</v-list-item-title>
+        </v-list-item>
+
+        <v-divider class="my-4"></v-divider>
+
+        <v-list-item
+          class="nav-item logout-item"
+          @click="logout"
+        >
+          <template v-slot:prepend>
+            <v-icon class="nav-icon">mdi-logout</v-icon>
+          </template>
+          <v-list-item-title class="nav-text">Odjava</v-list-item-title>
+        </v-list-item>
+      </v-list>
+    </v-navigation-drawer>
+
+    <!-- Animated background -->
+    <div class="animated-bg">
+      <div v-for="i in 4" :key="i" :class="`circle-${i}`"></div>
     </div>
 
-    <!-- Info Modal -->
-    <v-dialog v-model="openInfo" max-width="400">
-      <v-card>
-        <v-card-title>
-          <v-icon left class="mr-2">mdi-information-outline</v-icon>
-          Kontakt & Info
-        </v-card-title>
-        <v-card-text>
-          <div>
-            <b>Aplikacija Prediktor</b> <br>
-            Autor: Marko Leko <br>
-            Kontakt: <a href="mailto:marko@email.com">marko@email.com</a>
-          </div>
-          <div class="mt-4" style="font-size:0.97em;">
-            Napomena: Ova aplikacija je demonstracijska i nema medicinsku primjenu.
-          </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn text color="#004aad" @click="openInfo = false">Zatvori</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+    <v-main>
+      <v-container class="fill-height">
+        <v-row justify="center">
+          <v-col cols="12" md="10" lg="8">
+            <v-card class="main-card">
+              
+              <!-- PREDIKCIJE VIEW -->
+              <div v-if="currentView === 'predictions'">
+                <!-- Header -->
+                <div class="header">
+                  <h1 class="title">SpotCount</h1>
+                  <p class="subtitle">Dodaj sliku i pokreni prepoznavanje slobodnih mjesta</p>
+                </div>
+
+                <v-card-text>
+                  <!-- Upload -->
+                  <div
+                    class="dropzone"
+                    :class="{ active: dragActive }"
+                    @click="$refs.fileInput.click()"
+                    @dragover.prevent="dragActive = true"
+                    @dragleave.prevent="dragActive = false"
+                    @drop.prevent="handleDrop"
+                  >
+                    <v-icon size="48" class="dropzone-icon">mdi-cloud-upload</v-icon>
+                    <p>{{ dropzoneText }}</p>
+                    <input
+                      ref="fileInput"
+                      type="file"
+                      accept="image/*"
+                      style="display: none"
+                      @change="handleFile"
+                    />
+                  </div>
+
+                  <!-- Pregled slike -->
+                  <v-card v-if="image" class="image-preview mt-4" elevation="0">
+                    <v-img :src="previewUrl" max-width="350" class="rounded mx-auto"></v-img>
+                  </v-card>
+
+                  <!-- Gumb za predikciju -->
+                  <v-btn
+                    :disabled="!image"
+                    :loading="loading"
+                    class="primary-btn mt-4"
+                    block
+                    size="large"
+                    @click="predict"
+                  >
+                    <v-icon start>mdi-lightbulb</v-icon>
+                    {{ loading ? 'Procesiranje...' : 'Pokreni prepoznavanje' }}
+                  </v-btn>
+
+                  <!-- Rezultat predikcije -->
+                  <div v-if="result !== null && !loading" class="result-box mt-6">
+                    <v-alert type="info" color="#004aad" border="left" elevation="2">
+                      Broj slobodnih parkirnih mjesta: <b>{{ result }}</b>
+                    </v-alert>
+                  </div>
+                  <div v-if="error" class="mt-4">
+                    <v-alert type="error">{{ error }}</v-alert>
+                  </div>
+
+                  <!-- Annotirana slika -->
+                  <div v-if="annotatedImage && !loading" class="mt-4">
+                    <div class="text-center mb-2" style="color: #004aad; font-weight: 600;">
+                      Označena slobodna mjesta:
+                    </div>
+                    <v-img
+                      :src="'data:image/jpeg;base64,' + annotatedImage"
+                      max-width="420"
+                      class="rounded mx-auto"
+                      alt="Označena slobodna mjesta"
+                    ></v-img>
+                  </div>
+                </v-card-text>
+              </div>
+
+              <!-- POVIJEST VIEW -->
+              <div v-else-if="currentView === 'history'">
+                <div class="header">
+                  <h1 class="title">
+                    <v-icon class="mr-2">mdi-history</v-icon>
+                    Povijest predikcija
+                  </h1>
+                  <p class="subtitle">Vaše prethodne analize parkirnih mjesta</p>
+                </div>
+
+                <v-card-text>
+                  <div v-if="history.length === 0" class="text-center py-8">
+                    <v-icon size="80" color="#004aad" class="mb-4">mdi-inbox</v-icon>
+                    <h3 style="color: #004aad; margin-bottom: 16px;">Još nema spremljenih predikcija</h3>
+                    <p style="color: #666;">Dodajte sliku i pokrenite prepoznavanje da vidite rezultate ovdje.</p>
+                  </div>
+                  
+                  <v-row v-else>
+                    <v-col
+                      v-for="(item, i) in history"
+                      :key="i"
+                      cols="12"
+                      md="6"
+                      lg="4"
+                    >
+                      <v-card class="history-card mb-4" elevation="2">
+                        <v-img 
+                          :src="item.image_url" 
+                          height="200" 
+                          cover 
+                          class="history-image"
+                        />
+                        <v-card-title class="history-title">
+                          <v-icon class="mr-2" color="#004aad">mdi-car</v-icon>
+                          {{ item.n_free }} {{ item.n_free === 1 ? 'slobodno mjesto' : 'slobodnih mjesta' }}
+                        </v-card-title>
+                        <v-card-subtitle class="history-date">
+                          {{ item.created_at && item.created_at.toDate 
+                            ? item.created_at.toDate().toLocaleString() 
+                            : (item.created_at?.seconds ? formatTimestamp(item.created_at) : 'Nepoznat datum') }}
+                        </v-card-subtitle>
+                      </v-card>
+                    </v-col>
+                  </v-row>
+                </v-card-text>
+              </div>
+
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+    </v-main>
   </v-app>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import axios from 'axios'
 import { useRouter } from 'vue-router'
+import { getAuth, signOut } from 'firebase/auth'
+import { supabase } from '@/supabase'
+import { db } from '@/firebase'
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy } from 'firebase/firestore'
 
-const currentTab = ref('dashboard')
-const imageUrl = ref('')
-const imageName = ref('')
-const isDragActive = ref(false)
-const openInfo = ref(false)
+const drawer = ref(true)
+const currentView = ref('predictions')
+const image = ref(null)
+const previewUrl = ref('')
+const loading = ref(false)
+const dragActive = ref(false)
+const result = ref(null)
+const error = ref('')
+const annotatedImage = ref(null)
 const router = useRouter()
+const history = ref([])
 
-const onDrop = (event) => {
-  isDragActive.value = false
-  const files = event.dataTransfer.files
-  handleFile(files && files[0])
+const dropzoneText = computed(() =>
+  image.value ? `Odabrana: ${image.value.name}` : 'Povuci sliku ovdje ili klikni'
+)
+
+// Upload slike na Supabase Storage
+const uploadImage = async (file, userId) => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = `${userId}_${Date.now()}.${fileExt}`
+
+  const { error } = await supabase.storage
+    .from('predictions')
+    .upload(fileName, file)
+  if (error) throw error
+
+  // Dohvati javni URL slike (ISPRAVNO!)
+  const { data } = supabase.storage
+    .from('predictions')
+    .getPublicUrl(fileName)
+  // console.log('Supabase public URL:', data?.publicUrl)
+  return data.publicUrl
 }
 
-const onFileChange = (e) => {
-  const file = e.target.files && e.target.files[0]
-  handleFile(file)
+// Spremi predikciju u Firestore
+const savePrediction = async (imageUrl, nFree) => {
+  const user = getAuth().currentUser
+  if (!user) throw new Error("Nema korisnika!")
+
+  await addDoc(collection(db, "predictions"), {
+    user_id: user.uid,
+    image_url: imageUrl,
+    n_free: nFree,
+    created_at: serverTimestamp()
+  })
 }
 
-function handleFile(file) {
-  if (file && file.type.startsWith('image/')) {
-    imageName.value = file.name
-    const reader = new FileReader()
-    reader.onload = e => { imageUrl.value = e.target.result }
-    reader.readAsDataURL(file)
-  } else {
-    imageName.value = ''
-    imageUrl.value = ''
+// Prikaz povijesti iz Firestore
+const fetchHistory = async () => {
+  const user = getAuth().currentUser
+  if (!user) return
+
+  try {
+    const q = query(
+      collection(db, "predictions"),
+      where("user_id", "==", user.uid),
+      orderBy("created_at", "desc")
+    )
+    const querySnapshot = await getDocs(q)
+    history.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+    console.log('Povijest:', history.value)
+  } catch (error) {
+    // Ako orderBy padne, pokušaj fallback bez orderBy:
+    try {
+      const q2 = query(
+        collection(db, "predictions"),
+        where("user_id", "==", user.uid)
+      )
+      const querySnapshot2 = await getDocs(q2)
+      history.value = querySnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      console.log('Povijest fallback:', history.value)
+    } catch (error2) {
+      console.error('Greška fallback povijest:', error2)
+      history.value = []
+    }
   }
 }
 
-const onPredict = () => {
-  alert('Predikcija pokrenuta! (placeholder)')
+
+// Odabir slike
+const handleFile = (e) => {
+  const file = e.target.files[0]
+  if (file?.type.startsWith('image/')) {
+    image.value = file
+    const reader = new FileReader()
+    reader.onload = (e) => previewUrl.value = e.target.result
+    reader.readAsDataURL(file)
+    result.value = null
+    error.value = ''
+    annotatedImage.value = null
+  }
 }
 
-const logout = () => {
-  // Dodaj ovdje svoj signOut ako koristiš Firebase (npr. await signOut(auth))
+// Drag&drop
+const handleDrop = (e) => {
+  dragActive.value = false
+  const file = e.dataTransfer.files[0]
+  if (file?.type.startsWith('image/')) {
+    image.value = file
+    const reader = new FileReader()
+    reader.onload = (e) => previewUrl.value = e.target.result
+    reader.readAsDataURL(file)
+    result.value = null
+    error.value = ''
+    annotatedImage.value = null
+  }
+}
+
+// Glavna predikcija (backend -> Supabase -> Firestore)
+const predict = async () => {
+  if (!image.value) return
+
+  loading.value = true
+  result.value = null
+  error.value = ''
+  annotatedImage.value = null
+
+  try {
+    const formData = new FormData()
+    formData.append('file', image.value)
+
+    // 1. Pošalji sliku backendu za predikciju
+    const res = await axios.post('http://127.0.0.1:8000/predict', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    result.value = res.data.n_free
+    annotatedImage.value = res.data.image_base64
+
+    // 2. Upload originalne slike na Supabase storage
+    const user = getAuth().currentUser
+    const imageUrl = await uploadImage(image.value, user.uid)
+
+    // 3. Spremi sve u Firestore
+    await savePrediction(imageUrl, res.data.n_free)
+    
+    // 4. Osvježi povijest ako je prikazana
+    if (currentView.value === 'history') {
+      await fetchHistory()
+    }
+
+  } catch (err) {
+    error.value = err.response?.data?.detail || 'Greška pri obradi slike.'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Formatiranje Firestore timestamp-a (ako nije .toDate funkcija)
+const formatTimestamp = (ts) => {
+  if (!ts?.seconds) return ""
+  const d = new Date(ts.seconds * 1000)
+  return d.toLocaleString()
+}
+
+// Odjava korisnika
+const logout = async () => {
+  const auth = getAuth()
+  await signOut(auth)
   router.push('/login')
 }
 </script>
 
 <style scoped>
-.dashboard-layout {
-  display: flex;
-  min-height: 100vh;
-  position: relative;
-  background: none;
+.left-navbar {
+  background: linear-gradient(180deg, #004aad 0%, #0056d1 100%) !important;
+  border-right: none !important;
+  box-shadow: 4px 0 20px rgba(0, 74, 173, 0.15);
 }
 
-.sidebar {
-  width: 220px;
-  background: rgba(255,255,255,0.37);
-  backdrop-filter: blur(22px);
-  border-right: 1.5px solid rgba(0,74,173,0.08);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: stretch;
-  padding: 30px 0 20px 0;
-  z-index: 2;
-  box-shadow: 6px 0 22px 0 rgba(0,74,173,0.08);
-  min-height: 100vh;
-}
-.sidebar-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.sidebar-avatar {
-  background: linear-gradient(135deg,#00d1ff10 10%,#004aad14 90%);
-  margin-bottom: 8px;
-}
-.sidebar-title {
-  font-weight: 900;
-  color: #004aad;
-  font-size: 1.15rem;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 6px rgba(0,74,173,0.12);
-  margin-bottom: 8px;
-}
-.sidebar-links {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  margin-top: 12px;
-  padding: 0 18px;
-}
-.nav-link {
-  justify-content: flex-start !important;
-  color: #004aad !important;
-  font-weight: 600 !important;
-  border-radius: 15px !important;
-  margin: 0 0 2px 0;
-  font-size: 1.05rem !important;
-  transition: background 0.18s, color 0.17s;
-  height: 50px;
-  align-items: center;
-}
-.nav-link .v-icon { margin-right: 13px !important; }
-.nav-link.active, .nav-link:hover {
-  background: linear-gradient(90deg,#004aad17,#00d1ff15) !important;
-  color: #00d1ff !important;
-}
-
-.sidebar-footer {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  gap: 14px;
-  align-items: center;
-  padding: 14px 0 0 0;
-  border-top: 1.1px solid rgba(0,74,173,0.10);
-}
-.info-btn {
-  background: rgba(0,209,255,0.15) !important;
-  color: #00d1ff !important;
-}
-.logout-btn {
-  background: rgba(244,67,54,0.12) !important;
-}
-.logout-btn .v-icon { color: #d32f2f !important; }
-
-.main-content {
-  flex: 1;
-  min-height: 100vh;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  background: none;
-}
-.animated-background {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  background: linear-gradient(135deg,#004aad 0%,#fff 50%,#00d1ff 100%);
-  z-index: -1;
-  overflow: hidden;
-}
-.floating-circle { position: absolute; border-radius: 50%; background: rgba(255,255,255,0.15); animation: float 6s ease-in-out infinite;}
-.circle-1 { width: 80px;  height: 80px;  top: 10%;  left: 10%; animation-delay: 0s;}
-.circle-2 { width: 120px; height: 120px; top: 70%;  right: 10%; animation-delay: -2s;}
-.circle-3 { width: 60px;  height: 60px;  bottom: 20%; left: 20%; animation-delay: -4s;}
-.circle-4 { width: 100px; height: 100px; top: 30%;  right: 30%; animation-delay: -1s;}
-@keyframes float { 0%,100% {transform:translateY(0) rotate(0deg);} 50% {transform:translateY(-20px) rotate(180deg);} }
-.main-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 64px 0 0 0;
-  min-height: 100vh;
-  width: 100%;
-}
-.main-card {
-  background: rgba(255,255,255,0.25);
-  backdrop-filter: blur(20px);
-  border-radius: 32px;
-  padding: 52px 46px;
-  border: 1px solid rgba(255,255,255,0.4);
-  box-shadow: 0 25px 50px rgba(0,74,173,0.13);
-  min-width: 340px;
-  max-width: 500px;
-  width: 100%;
-  margin-bottom: 60px;
-  transition: all 0.3s;
-}
-.main-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 35px 70px rgba(0,74,173,0.17);
-}
-.dashboard-header { text-align: center; margin-bottom: 40px; }
-.dashboard-title { font-size: 2.1rem; font-weight: 800; color: #004aad; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,74,173,0.2);}
-.dashboard-subtitle { font-size: 1.07rem; color: #004aad; font-weight: 500; opacity: 0.85; margin-bottom: 0;}
-.dropzone {
-  border: 2px dashed #00d1ff;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.46);
-  padding: 36px 20px 24px 20px;
+.navbar-header {
+  padding: 32px 24px 24px;
   text-align: center;
-  cursor: pointer;
-  margin-bottom: 18px;
-  transition: background 0.3s, border-color 0.3s;
-  position: relative;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 20px;
 }
-.dropzone--active {
-  background: rgba(0,209,255,0.10);
-  border-color: #004aad;
+
+.nav-title {
+  color: white;
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: 1px;
+  margin: 0 0 8px 0;
 }
-.dropzone .v-icon { margin-bottom: 10px; }
-.dropzone p { margin: 0; color: #004aad; font-weight: 500; }
-.file-input {
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  left: 0; top: 0;
-  cursor: pointer;
+
+.nav-subtitle {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 0;
 }
+
+.nav-menu {
+  padding: 0 16px;
+}
+
+.nav-item {
+  border-radius: 12px !important;
+  margin: 6px 0;
+  transition: all 0.3s ease;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  transform: translateX(4px);
+}
+
+.nav-item.active {
+  background: rgba(0, 209, 255, 0.2) !important;
+  color: #00d1ff !important;
+  border-left: 3px solid #00d1ff;
+}
+
+.nav-icon {
+  color: inherit !important;
+  margin-right: 4px;
+}
+
+.nav-text {
+  color: inherit !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.logout-item {
+  color: rgba(255, 255, 255, 0.6) !important;
+  margin-top: 20px;
+}
+
+.logout-item:hover {
+  background: rgba(255, 86, 86, 0.15) !important;
+  color: #ff5656 !important;
+}
+
+.animated-bg {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(135deg, #004aad 0%, #ffffff 50%, #00d1ff 100%);
+  z-index: -1;
+}
+
+.animated-bg div {
+  position: absolute; border-radius: 50%; background: rgba(255,255,255,0.12);
+  animation: float 6s ease-in-out infinite;
+}
+
+.circle-1 { width: 80px; height: 80px; top: 10%; left: 10%; }
+.circle-2 { width: 120px; height: 120px; top: 70%; right: 10%; animation-delay: -2s; }
+.circle-3 { width: 60px; height: 60px; bottom: 20%; left: 20%; animation-delay: -4s; }
+.circle-4 { width: 100px; height: 100px; top: 30%; right: 30%; animation-delay: -1s; }
+
+@keyframes float {
+  0%,100%{transform:translateY(0px);}
+  50%{transform:translateY(-20px);}
+}
+
+.main-card {
+  background: rgba(255,255,255,0.3) !important;
+  backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  box-shadow: 0 15px 50px rgba(0,74,173,0.14);
+}
+
+.header { text-align: center; padding: 22px 0; }
+.title { font-size: 2.3rem; font-weight: 800; color: #004aad; }
+.subtitle { color: #004aad; opacity: 0.8; font-weight: 500; }
+
+.dropzone {
+  border: 2px dashed #00d1ff; border-radius: 22px;
+  background: rgba(255,255,255,0.4); backdrop-filter: blur(10px);
+  padding: 48px 20px; text-align: center; cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.dropzone.active {
+  background: rgba(0,209,255,0.13); border-color: #004aad; transform: scale(1.02);
+}
+
+.dropzone-icon { color: #00d1ff; animation: bounce 2s infinite; }
+
+@keyframes bounce {
+  0%,20%,50%,80%,100%{transform:translateY(0);}
+  40%{transform:translateY(-10px);}
+}
+
+.dropzone p { color: #004aad; font-weight: 500; margin: 16px 0 0 0; }
+
 .image-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255,255,255,0.33);
-  border-radius: 16px;
-  padding: 14px;
-  border: 1px solid rgba(0,209,255,0.11);
+  background: rgba(255,255,255,0.46) !important;
+  border: 1px solid rgba(0,209,255,0.22) !important;
+  padding: 20px;
 }
-.image-preview img {
-  max-width: 180px;
-  max-height: 180px;
-  border-radius: 10px;
-  box-shadow: 0 6px 20px rgba(0,74,173,0.13);
-}
-.modern-btn {
-  border-radius: 50px !important;
-  height: 60px !important;
-  font-size: 1.1rem !important;
-  font-weight: 600 !important;
-  text-transform: none !important;
-  letter-spacing: 0.5px !important;
-  transition: all 0.3s cubic-bezier(0.4,0,0.2,1) !important;
-  position: relative;
-  overflow: hidden;
-  margin-top: 10px;
-}
+
 .primary-btn {
   background: linear-gradient(45deg,#004aad,#00d1ff) !important;
-  color: white !important;
-  border: none !important;
+  color: white !important; border-radius: 50px !important; font-weight: 600 !important;
+  box-shadow: 0 8px 25px rgba(0,74,173,0.13);
 }
-.primary-btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 15px 35px rgba(0,209,255,0.32) !important;
+
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 15px 35px rgba(0,209,255,0.24) !important;
 }
-.primary-btn:before {
-  content: '';
-  position: absolute;
-  top: 0; left: -100%;
-  width: 100%; height: 100%;
-  background: linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);
-  transition: left 0.5s;
-}
-.primary-btn:hover:before { left: 100%; }
-.history-placeholder {
+
+.result-box {
   text-align: center;
-  padding: 46px 0;
-  color: #004aad;
-  opacity: 0.7;
-  font-size: 1.11rem;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
-@media (max-width: 900px) {
-  .sidebar { width: 60px; min-width: 60px; }
-  .sidebar-title, .nav-link span { display: none; }
-  .sidebar-links { padding: 0 4px; }
+
+.history-card {
+  background: rgba(255,255,255,0.9) !important;
+  border: 1px solid rgba(0,209,255,0.2) !important;
+  transition: all 0.3s ease;
 }
-@media (max-width: 700px) {
-  .sidebar { display: none; }
-  .main-inner { padding-top: 20px;}
-  .main-card { padding: 22px 8px;}
+
+.history-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 25px rgba(0,74,173,0.15) !important;
+}
+
+.history-image {
+  border-radius: 8px 8px 0 0 !important;
+}
+
+.history-title {
+  color: #004aad !important;
+  font-weight: 600 !important;
+  font-size: 1.1rem !important;
+}
+
+.history-date {
+  color: #666 !important;
+  font-size: 0.9rem !important;
+}
+
+@media (max-width: 768px) {
+  .left-navbar {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .left-navbar.mobile-open {
+    transform: translateX(0);
+  }
+  
+  .title { font-size: 1.3rem; }
+  .dropzone { padding: 28px 8px; }
 }
 </style>
