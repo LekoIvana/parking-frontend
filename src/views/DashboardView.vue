@@ -107,12 +107,31 @@
                     {{ loading ? 'Procesiranje...' : 'Pokreni prepoznavanje' }}
                   </v-btn>
 
-                  <!-- Rezultat predikcije -->
-                  <div v-if="result !== null && !loading" class="result-box mt-6">
-                    <v-alert type="info" color="#004aad" border="left" elevation="2">
-                      Broj slobodnih parkirnih mjesta: <b>{{ result }}</b>
-                    </v-alert>
-                  </div>
+                  
+<v-row class="spot-stats-row mt-6" justify="center" align="center" v-if="result !== null && !loading">
+  <v-col cols="12" sm="4">
+    <v-card class="spot-stat-card free" elevation="2">
+      <v-icon size="36" class="mb-2">mdi-parking</v-icon>
+      <div class="stat-number">{{ result }}</div>
+      <div class="stat-label">Slobodnih</div>
+    </v-card>
+  </v-col>
+  <v-col cols="12" sm="4">
+    <v-card class="spot-stat-card occupied" elevation="2">
+      <v-icon size="36" class="mb-2">mdi-car</v-icon>
+      <div class="stat-number">{{ lastOccupied }}</div>
+      <div class="stat-label">Zauzetih</div>
+    </v-card>
+  </v-col>
+  <v-col cols="12" sm="4">
+    <v-card class="spot-stat-card total" elevation="2">
+      <v-icon size="36" class="mb-2">mdi-counter</v-icon>
+      <div class="stat-number">{{ lastTotal }}</div>
+      <div class="stat-label">Ukupno</div>
+    </v-card>
+  </v-col>
+</v-row>
+
                   <div v-if="error" class="mt-4">
                     <v-alert type="error">{{ error }}</v-alert>
                   </div>
@@ -164,10 +183,18 @@
                           cover 
                           class="history-image"
                         />
-                        <v-card-title class="history-title">
-                          <v-icon class="mr-2" color="#004aad">mdi-car</v-icon>
-                          {{ item.n_free }} {{ item.n_free === 1 ? 'slobodno mjesto' : 'slobodnih mjesta' }}
-                        </v-card-title>
+                        <v-card-title class="history-title d-flex align-center">
+                            <v-icon class="mr-2" color="#44c767">mdi-parking</v-icon>
+                            <span class="mr-2">{{ item.n_free ?? '-' }}</span>
+                            <span style="font-size: 0.95rem; color: #44c767; margin-right:10px;">Slobodnih</span>
+                            <v-icon class="mr-2" color="#e34b4c">mdi-car</v-icon>
+                            <span class="mr-2">{{ item.n_occupied ?? '-' }}</span>
+                            <span style="font-size: 0.95rem; color: #e34b4c; margin-right:10px;">Zauzetih</span>
+                            <v-icon class="mr-2" color="#2874c9">mdi-counter</v-icon>
+                            <span>{{ item.total_spots ?? '-' }}</span>
+                            <span style="font-size: 0.95rem; color: #2874c9;">Ukupno</span>
+                          </v-card-title>
+
                         <v-card-subtitle class="history-date">
                           {{ item.created_at && item.created_at.toDate 
                             ? item.created_at.toDate().toLocaleString() 
@@ -203,8 +230,10 @@ const previewUrl = ref('')
 const loading = ref(false)
 const dragActive = ref(false)
 const result = ref(null)
-const error = ref('')
 const annotatedImage = ref(null)
+const error = ref('')
+const lastOccupied = ref(null)
+const lastTotal = ref(null)
 const router = useRouter()
 const history = ref([])
 
@@ -222,16 +251,15 @@ const uploadImage = async (file, userId) => {
     .upload(fileName, file)
   if (error) throw error
 
-  // Dohvati javni URL slike (ISPRAVNO!)
+  // Dohvati javni URL slike
   const { data } = supabase.storage
     .from('predictions')
     .getPublicUrl(fileName)
-  // console.log('Supabase public URL:', data?.publicUrl)
   return data.publicUrl
 }
 
-// Spremi predikciju u Firestore
-const savePrediction = async (imageUrl, nFree) => {
+// Spremi predikciju u Firestore (spremamo sva 3 broja)
+const savePrediction = async (imageUrl, nFree, nOccupied, totalSpots) => {
   const user = getAuth().currentUser
   if (!user) throw new Error("Nema korisnika!")
 
@@ -239,6 +267,8 @@ const savePrediction = async (imageUrl, nFree) => {
     user_id: user.uid,
     image_url: imageUrl,
     n_free: nFree,
+    n_occupied: nOccupied,
+    total_spots: totalSpots,
     created_at: serverTimestamp()
   })
 }
@@ -256,7 +286,7 @@ const fetchHistory = async () => {
     )
     const querySnapshot = await getDocs(q)
     history.value = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    console.log('Povijest:', history.value)
+    // console.log('Povijest:', history.value)
   } catch (error) {
     // Ako orderBy padne, pokušaj fallback bez orderBy:
     try {
@@ -266,14 +296,11 @@ const fetchHistory = async () => {
       )
       const querySnapshot2 = await getDocs(q2)
       history.value = querySnapshot2.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      console.log('Povijest fallback:', history.value)
     } catch (error2) {
-      console.error('Greška fallback povijest:', error2)
       history.value = []
     }
   }
 }
-
 
 // Odabir slike
 const handleFile = (e) => {
@@ -286,6 +313,8 @@ const handleFile = (e) => {
     result.value = null
     error.value = ''
     annotatedImage.value = null
+    lastOccupied.value = null
+    lastTotal.value = null
   }
 }
 
@@ -301,6 +330,8 @@ const handleDrop = (e) => {
     result.value = null
     error.value = ''
     annotatedImage.value = null
+    lastOccupied.value = null
+    lastTotal.value = null
   }
 }
 
@@ -312,6 +343,8 @@ const predict = async () => {
   result.value = null
   error.value = ''
   annotatedImage.value = null
+  lastOccupied.value = null
+  lastTotal.value = null
 
   try {
     const formData = new FormData()
@@ -322,7 +355,10 @@ const predict = async () => {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
+    // Backend MORA vraćati sva tri podatka!
     result.value = res.data.n_free
+    lastOccupied.value = res.data.n_occupied
+    lastTotal.value = res.data.total_spots
     annotatedImage.value = res.data.image_base64
 
     // 2. Upload originalne slike na Supabase storage
@@ -330,7 +366,12 @@ const predict = async () => {
     const imageUrl = await uploadImage(image.value, user.uid)
 
     // 3. Spremi sve u Firestore
-    await savePrediction(imageUrl, res.data.n_free)
+    await savePrediction(
+      imageUrl,
+      res.data.n_free,
+      res.data.n_occupied,
+      res.data.total_spots
+    )
     
     // 4. Osvježi povijest ako je prikazana
     if (currentView.value === 'history') {
@@ -358,6 +399,7 @@ const logout = async () => {
   router.push('/login')
 }
 </script>
+
 
 <style scoped>
 .left-navbar {
@@ -546,4 +588,44 @@ const logout = async () => {
   .title { font-size: 1.3rem; }
   .dropzone { padding: 28px 8px; }
 }
+
+.spot-stats-row {
+  margin-bottom: 18px;
+}
+.spot-stat-card {
+  text-align: center;
+  border-radius: 18px !important;
+  padding: 18px 0 14px 0;
+  background: rgba(255,255,255,0.82);
+  backdrop-filter: blur(7px);
+  min-width: 120px;
+  max-width: 210px;
+  margin: 0 auto;
+  transition: box-shadow .2s;
+}
+.spot-stat-card .stat-number {
+  font-size: 2.0rem;
+  font-weight: bold;
+  color: inherit;
+  margin-bottom: 2px;
+}
+.spot-stat-card .stat-label {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: .7;
+}
+
+.spot-stat-card.free {
+  border-left: 6px solid #44c767;
+  color: #189d3d;
+}
+.spot-stat-card.occupied {
+  border-left: 6px solid #e34b4c;
+  color: #e34b4c;
+}
+.spot-stat-card.total {
+  border-left: 6px solid #3ca6e5;
+  color: #2874c9;
+}
+
 </style>
